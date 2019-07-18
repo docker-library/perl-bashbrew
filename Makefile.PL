@@ -19,7 +19,7 @@ WriteMakefile(
 		'IO::Socket::Socks' => 0,
 		'Net::DNS::Native' => 0,
 # https://metacpan.org/release/Mojolicious
-		'Mojolicious' => '== 8.20',
+		'Mojolicious' => '== 8.22',
 	},
 	# TODO EXE_FILES ?
 );

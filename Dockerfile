@@ -49,7 +49,7 @@ RUN set -eux; \
 ENV LIBEV_FLAGS 4
 # epoll (Linux)
 
-WORKDIR /opt/bashbrew-perl
+WORKDIR /opt/perl-bashbrew
 COPY lib/Bashbrew.pm lib/
 COPY Makefile.PL ./
 RUN cpanm --installdeps .
