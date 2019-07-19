@@ -113,8 +113,8 @@ sub _tag_canonical ($self) {
 }
 
 # digest || tag || 'latest' (ie, which ref to fetch from a remote registry)
-sub obj ($self) {
-	return $self->digest || $self->tag || 'latest';
+sub obj ($self, $fallback = 'latest') {
+	return $self->digest || $self->tag || $fallback;
 }
 # the last portion of the repo ("foo/bar/baz" => "baz")
 sub repo_name ($self) {

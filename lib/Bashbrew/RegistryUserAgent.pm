@@ -27,14 +27,18 @@ has ua => sub {
 	return $ua;
 };
 
+# https://github.com/docker/distribution/blob/v2.7.1/docs/spec/manifest-v2-2.md#media-types
+use constant MEDIA_MANIFEST_LIST => 'application/vnd.docker.distribution.manifest.list.v2+json';
+use constant MEDIA_MANIFEST_V2   => 'application/vnd.docker.distribution.manifest.v2+json';
+use constant MEDIA_MANIFEST_V1   => 'application/vnd.docker.distribution.manifest.v1+json';
+use constant MEDIA_FOREIGN_LAYER => 'application/vnd.docker.image.rootfs.foreign.diff.tar.gzip';
+
 # this is "normally" handled for us by https://github.com/tianon/dockerhub-public-proxy but is necessary for alternative registries
 my $acceptHeader = [
-	'application/vnd.docker.distribution.manifest.list.v2+json',
-	'application/vnd.docker.distribution.manifest.v2+json',
-	# TODO OCI media types?
+	MEDIA_MANIFEST_LIST,
+	MEDIA_MANIFEST_V2,
+	MEDIA_MANIFEST_V1,
 ];
-
-# TODO move more methods, etc from bin/put-multiarch.pl
 
 sub _retry_simple_req_p ($self, $tries, $method, @args) {
 	--$tries;
@@ -44,22 +48,25 @@ sub _retry_simple_req_p ($self, $tries, $method, @args) {
 	if (!$tries < 1) {
 		$prom = $prom->then(sub ($tx) {
 			return $tx if !$tx->error || $tx->res->code == 404 || $tx->res->code == 401;
+			# TODO some amount of "backoff" (or at least a short delay)
 			return $self->_retry_simple_req_p($tries, $method, @args);
 		});
 	}
 	return $prom;
 }
 
-sub _ref_repo_url ($self, $ref) {
+sub retry_simple_req_p ($self, $method, @args) {
+	return $self->_retry_simple_req_p($self->defaultRetries, $method, @args);
+}
+
+sub ref_url ($self, $ref, $urlType = undef, $direct = 0) {
+	my $obj = $ref->obj(undef);
+	die "ref '$ref' missing tag or digest" if $urlType && !$obj;
 	return (
-		(!$ref->docker_host && $self->hubProxy)
+		(!$direct && !$ref->docker_host && $self->hubProxy)
 		? $self->hubProxy
 		: ($self->insecure ? 'http' : 'https') . '://' . $ref->registry_host
-	) . '/v2/' . $ref->repo;
-}
-# "__ref_repo_url" but ignoring "hubProxy" (authenticated requests, etc)
-sub _ref_repo_url_raw ($self, $ref) {
-	return ($self->insecure ? 'http' : 'https') . '://' . $ref->registry_host . '/v2/' . $ref->repo;
+	) . '/v2/' . $ref->canonical_repo . ($urlType ? '/' . $urlType . '/' . $obj : '');
 }
 
 sub get_manifest_p ($self, $ref, $tries = $self->defaultRetries) {
@@ -71,7 +78,7 @@ sub get_manifest_p ($self, $ref, $tries = $self->defaultRetries) {
 		return Mojo::Promise->resolve($cache{$ref->digest});
 	}
 
-	return $self->_retry_simple_req_p($tries, GET => $self->_ref_repo_url($ref) . '/manifests/' . $ref->obj, { Accept => $acceptHeader })->then(sub ($tx) {
+	return $self->_retry_simple_req_p($tries, GET => $self->ref_url($ref, 'manifests'), { Accept => $acceptHeader })->then(sub ($tx) {
 		return if $tx->res->code == 404 || $tx->res->code == 401;
 
 		if (!$lastTry && $tx->res->code != 200) {
@@ -94,7 +101,7 @@ sub get_manifest_p ($self, $ref, $tries = $self->defaultRetries) {
 
 			mediaType => (
 				$manifest->{schemaVersion} == 1
-				? 'application/vnd.docker.distribution.manifest.v1+json'
+				? MEDIA_MANIFEST_V1
 				: (
 					$manifest->{schemaVersion} == 2
 					? $manifest->{mediaType}
@@ -114,7 +121,7 @@ sub get_blob_p ($self, $ref, $tries = $self->defaultRetries) {
 	state %cache;
 	return Mojo::Promise->resolve($cache{$ref->digest}) if $cache{$ref->digest};
 
-	return $self->_retry_simple_req_p($tries, GET => $self->_ref_repo_url($ref) . '/blobs/' . $ref->digest)->then(sub ($tx) {
+	return $self->_retry_simple_req_p($tries, GET => $self->ref_url($ref, 'blobs'))->then(sub ($tx) {
 		return if $tx->res->code == 404;
 
 		if (!$lastTry && $tx->res->code != 200) {
@@ -133,7 +140,7 @@ sub head_manifest_p ($self, $ref) {
 	state %cache;
 	return Mojo::Promise->resolve($cache{$cacheKey}) if $cache{$cacheKey};
 
-	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->_ref_repo_url($ref) . '/manifests/' . $ref->digest, { Accept => $acceptHeader })->then(sub ($tx) {
+	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->ref_url($ref, 'manifests'), { Accept => $acceptHeader })->then(sub ($tx) {
 		return 0 if $tx->res->code == 404 || $tx->res->code == 401;
 		die "unexpected exit code HEADing manifest '$ref': " . $tx->res->code unless $tx->res->code == 200;
 		return $cache{$cacheKey} = 1;
@@ -147,7 +154,7 @@ sub head_blob_p ($self, $ref) {
 	state %cache;
 	return Mojo::Promise->resolve($cache{$cacheKey}) if $cache{$cacheKey};
 
-	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->_ref_repo_url($ref) . '/blobs/' . $ref->digest)->then(sub ($tx) {
+	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->ref_url($ref, 'blobs'))->then(sub ($tx) {
 		return 0 if $tx->res->code == 404 || $tx->res->code == 401;
 		die "unexpected exit code HEADing blob '$ref': " . $tx->res->code unless $tx->res->code == 200;
 		return $cache{$cacheKey} = 1;
@@ -199,7 +206,7 @@ sub authenticated_registry_req_p ($self, $method, $ref, $scope, $url, $contentTy
 	}
 
 	my $methodP = lc($method) . '_p';
-	my $fullUrl = $self->_ref_repo_url_raw($ref) . '/' . $url;
+	my $fullUrl = $self->ref_url($ref->clone->digest(undef)->tag(undef), undef, 1) . '/' . $url;
 	return $self->ua->$methodP($fullUrl, \%headers, ($payload ? $payload : ()))->then(sub ($tx) {
 		if (!$lastTry && $tx->res->code == 401) {
 			# "Unauthorized" -- we must need to go fetch a token for this registry request (so let's go do that, then retry the original registry request)
