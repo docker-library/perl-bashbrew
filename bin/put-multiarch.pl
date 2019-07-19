@@ -8,8 +8,6 @@ use Mojo::Base -strict, -signatures;
 use Digest::SHA;
 use Getopt::Long;
 use Mojo::Promise;
-use Mojo::UserAgent;
-use Mojo::Util;
 
 use Bashbrew qw( arch_to_platform bashbrew );
 use Bashbrew::RemoteImageRef;
