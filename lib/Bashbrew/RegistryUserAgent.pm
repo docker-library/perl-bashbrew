@@ -61,7 +61,7 @@ sub retry_simple_req_p ($self, $method, @args) {
 
 sub ref_url ($self, $ref, $urlType = undef, $direct = 0) {
 	my $obj = $ref->obj(undef);
-	die "ref '$ref' missing tag or digest" if $urlType && !$obj;
+	die "ref '$ref' missing tag or digest" if $urlType && !defined $obj;
 	return (
 		(!$direct && !$ref->docker_host && $self->hubProxy)
 		? $self->hubProxy

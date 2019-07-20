@@ -528,5 +528,7 @@ is $clone->obj, 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 $clone->digest(undef);
 is $clone->obj, 'latest';
 is $clone->obj(undef), undef;
+$clone->tag('0');
+is $clone->obj, '0';
 
 done_testing();

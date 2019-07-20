@@ -101,20 +101,20 @@ sub docker_repo ($self) {
 }
 sub canonical_tag ($self) {
 	my $tag = $self->tag;
-	$tag = 'latest' unless $tag or $self->digest;
+	$tag = 'latest' unless defined($tag) or $self->digest;
 	$tag = undef if ($tag // '') eq 'latest' and $self->digest;
 	return $tag;
 }
-sub _tag ($self) { $self->tag ? ':' . $self->tag : '' }
+sub _tag ($self) { defined($self->tag) ? ':' . $self->tag : '' }
 sub _digest ($self) { $self->digest ? '@' . $self->digest : '' }
 sub _tag_canonical ($self) {
 	my $tag = $self->canonical_tag;
-	return ($tag ? ':' . $tag : '') . $self->_digest;
+	return (defined($tag) ? ':' . $tag : '') . $self->_digest;
 }
 
 # digest || tag || 'latest' (ie, which ref to fetch from a remote registry)
 sub obj ($self, $fallback = 'latest') {
-	return $self->digest || $self->tag || $fallback;
+	return $self->digest || $self->tag // $fallback;
 }
 # the last portion of the repo ("foo/bar/baz" => "baz")
 sub repo_name ($self) {
