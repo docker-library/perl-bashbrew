@@ -50,7 +50,7 @@ sub get_arch_p ($targetRef, $arch, $archRef) {
 			};
 			if ($manifestListItem->{platform}{os} eq 'windows' && !$manifestListItem->{platform}{'os.version'} && $mediaType eq 'application/vnd.docker.distribution.manifest.v2+json') {
 				# if we're on Windows, we need to make an effort to fetch the "os.version" value from the config for the platform object
-				return get_blob_p($archRef->clone->digest($manifest->{config}{digest}))->then(sub ($config = undef) {
+				return $ua->get_blob_p($archRef->clone->digest($manifest->{config}{digest}))->then(sub ($config = undef) {
 					if ($config && $config->{'os.version'}) {
 						$manifestListItem->{platform}{'os.version'} = $config->{'os.version'};
 					}
