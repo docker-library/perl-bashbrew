@@ -45,7 +45,7 @@ sub _retry_simple_req_p ($self, $tries, $method, @args) {
 
 	my $methodP = lc($method) . '_p';
 	my $prom = $self->ua->$methodP(@args);
-	if (!$tries < 1) {
+	if ($tries > 0) {
 		$prom = $prom->then(sub ($tx) {
 			return $tx if !$tx->error || $tx->res->code == 404 || $tx->res->code == 401;
 			# TODO some amount of "backoff" (or at least a short delay)
