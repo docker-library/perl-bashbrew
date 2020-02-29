@@ -6,7 +6,14 @@ RUN set -eux; \
 		ca-certificates \
 		wget \
 	; \
-	rm -rf /var/lib/apt/lists/*
+	apt-get clean; \
+	rm -rf \
+		/var/lib/apt/lists/* \
+		/tmp/* \
+        	/var/tmp/* \
+        	/usr/share/man \
+        	/usr/share/doc \
+        	/usr/share/doc-base
 
 # secure by default ♥ (thanks to sri!)
 ENV PERL_CPANM_OPT --verbose --mirror https://cpan.metacpan.org
@@ -32,7 +39,14 @@ RUN set -eux; \
 		libssl-dev \
 		zlib1g-dev \
 	; \
-	rm -rf /var/lib/apt/lists/*; \
+	apt-get clean; \
+	rm -rf \
+		/var/lib/apt/lists/* \
+		/tmp/* \
+       		/var/tmp/* \
+       		/usr/share/man \
+        	/usr/share/doc \
+        	/usr/share/doc-base; \
 	cpanm \
 		EV \
 		IO::Socket::IP \
