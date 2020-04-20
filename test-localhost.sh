@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # docker run -dit --name registry --restart always -p 5000:5000 registry
 
-arches=( amd64 arm32v5 arm32v6 arm32v7 arm64v8 i386 ppc64le s390x )
+arches=( amd64 arm32v5 arm32v6 arm32v7 arm64v8 i386 mips64le ppc64le s390x )
 image='busybox:latest'
 target='localhost:5000'
 
@@ -16,6 +16,8 @@ for arch in "${arches[@]}"; do
 	BASHBREW_ARCH_NAMESPACES+="$arch = $target/$arch"
 done
 export BASHBREW_ARCH_NAMESPACES
+
+export DOCKERHUB_PUBLIC_PROXY=https://bogus.example.com # unnecessary for pushing to localhost
 
 ./put-multiarch.sh --dry-run --insecure "$target/library/$image"
 
