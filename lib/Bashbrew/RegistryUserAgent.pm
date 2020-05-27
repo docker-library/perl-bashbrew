@@ -84,7 +84,7 @@ sub get_manifest_p ($self, $ref, $tries = $self->defaultRetries) {
 		if (!$lastTry && $tx->res->code != 200) {
 			return $self->get_manifest_p($ref, $tries);
 		}
-		die "unexpected response code fetching '$ref': " . $tx->res->code unless $tx->res->code == 200;
+		die "unexpected response code fetching '$ref': " . $tx->res->code . ' -- ' . $tx->res->message unless $tx->res->code == 200;
 
 		my $digest = $tx->res->headers->header('Docker-Content-Digest') or die "'$ref' is missing 'Docker-Content-Digest' header";
 		die "malformed 'docker-content-digest' header in '$ref': '$digest'" unless $digest =~ m!^sha256:!; # TODO reuse Bashbrew::RemoteImageRef digest validation
@@ -127,7 +127,7 @@ sub get_blob_p ($self, $ref, $tries = $self->defaultRetries) {
 		if (!$lastTry && $tx->res->code != 200) {
 			return $self->get_blob_p($ref, $tries);
 		}
-		die "unexpected response code fetching blob from '$ref'': " . $tx->res->code unless $tx->res->code == 200;
+		die "unexpected response code fetching blob from '$ref': " . $tx->res->code . ' -- ' . $tx->res->message unless $tx->res->code == 200;
 
 		return $cache{$ref->digest} = $tx->res->json;
 	});
@@ -142,7 +142,7 @@ sub head_manifest_p ($self, $ref) {
 
 	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->ref_url($ref, 'manifests'), { Accept => $acceptHeader })->then(sub ($tx) {
 		return 0 if $tx->res->code == 404 || $tx->res->code == 401;
-		die "unexpected response code HEADing manifest '$ref': " . $tx->res->code unless $tx->res->code == 200;
+		die "unexpected response code HEADing manifest '$ref': " . $tx->res->code . ' -- ' . $tx->res->message unless $tx->res->code == 200;
 		return $cache{$cacheKey} = 1;
 	});
 }
@@ -156,7 +156,7 @@ sub head_blob_p ($self, $ref) {
 
 	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->ref_url($ref, 'blobs'))->then(sub ($tx) {
 		return 0 if $tx->res->code == 404 || $tx->res->code == 401;
-		die "unexpected response code HEADing blob '$ref': " . $tx->res->code unless $tx->res->code == 200;
+		die "unexpected response code HEADing blob '$ref': " . $tx->res->code . ' -- ' . $tx->res->message unless $tx->res->code == 200;
 		return $cache{$cacheKey} = 1;
 	});
 }
