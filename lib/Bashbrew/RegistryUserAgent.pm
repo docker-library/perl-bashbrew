@@ -48,8 +48,13 @@ sub _retry_simple_req_p ($self, $tries, $method, @args) {
 	if ($tries > 0) {
 		$prom = $prom->then(sub ($tx) {
 			return $tx if !$tx->error || $tx->res->code == 404 || $tx->res->code == 401;
-			# TODO some amount of "backoff" (or at least a short delay)
-			return $self->_retry_simple_req_p($tries, $method, @args);
+
+			# retry after a small delay (longer in the face of "429 Too Many Requests")
+			return Mojo::Promise->timer(
+				$tx->res->code == 429
+				? 1
+				: 0.1
+			)->then(sub { return $self->_retry_simple_req_p($tries, $method, @args) });
 		});
 	}
 	return $prom;
