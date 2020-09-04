@@ -210,8 +210,8 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 				});
 			})->then(sub {
 				# let's do one final check of the tag we're pushing to see if it's already the manifest we expect it to be (to avoid making literally every image constantly "Updated a few seconds ago" all the time)
-				return $ua->get_manifest_p($ref)->then(sub ($manifestData = undef) {
-					if ($manifestData && $manifestData->{digest} eq $manifestListDigest) {
+				return $ua->head_manifest_p($ref)->then(sub ($digest = undef) {
+					if ($digest && $digest eq $manifestListDigest) {
 						say "Skipping $ref ($manifestListDigest)" unless $dryRun; # if we're in "dry run" mode, we need clean output
 						return;
 					}

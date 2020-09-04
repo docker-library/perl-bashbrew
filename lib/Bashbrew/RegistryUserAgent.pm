@@ -139,16 +139,16 @@ sub get_blob_p ($self, $ref, $tries = $self->defaultRetries) {
 }
 
 sub head_manifest_p ($self, $ref) {
-	die "missing manifest digest for HEAD '$ref'" unless $ref->digest;
-
 	my $cacheKey = $ref->to_canonical_string;
 	state %cache;
 	return Mojo::Promise->resolve($cache{$cacheKey}) if $cache{$cacheKey};
 
 	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->ref_url($ref, 'manifests'), { Accept => $acceptHeader })->then(sub ($tx) {
-		return 0 if $tx->res->code == 404 || $tx->res->code == 401;
+		return undef if $tx->res->code == 404 || $tx->res->code == 401;
 		die "unexpected response code HEADing manifest '$ref': " . $tx->res->code . ' -- ' . $tx->res->message unless $tx->res->code == 200;
-		return $cache{$cacheKey} = 1;
+		my $digest = $tx->res->headers->header('docker-content-digest');
+		die "missing digest from HEADing manifest '$ref'" unless $digest;
+		return $cache{$cacheKey} = $digest;
 	});
 }
 
