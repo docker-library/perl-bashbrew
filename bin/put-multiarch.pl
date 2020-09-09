@@ -34,11 +34,11 @@ sub get_arch_p ($targetRef, $arch, $archRef) {
 		my ($digest, $manifest, $size) = ($manifestData->{digest}, $manifestData->{manifest}, $manifestData->{size});
 
 		my $mediaType = $manifestData->{mediaType};
-		if ($mediaType eq 'application/vnd.docker.distribution.manifest.list.v2+json') {
+		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_LIST) {
 			# jackpot -- if it's already a manifest list, the hard work is done!
 			return ($archRef, $manifest->{manifests});
 		}
-		if ($mediaType eq 'application/vnd.docker.distribution.manifest.v1+json' || $mediaType eq 'application/vnd.docker.distribution.manifest.v2+json') {
+		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2) {
 			my $manifestListItem = {
 				mediaType => $mediaType,
 				size => $size,
@@ -48,7 +48,7 @@ sub get_arch_p ($targetRef, $arch, $archRef) {
 					($manifest->{'os.version'} ? ('os.version' => $manifest->{'os.version'}) : ()),
 				},
 			};
-			if ($manifestListItem->{platform}{os} eq 'windows' && !$manifestListItem->{platform}{'os.version'} && $mediaType eq 'application/vnd.docker.distribution.manifest.v2+json') {
+			if ($manifestListItem->{platform}{os} eq 'windows' && !$manifestListItem->{platform}{'os.version'} && $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2) {
 				# if we're on Windows, we need to make an effort to fetch the "os.version" value from the config for the platform object
 				return $ua->get_blob_p($archRef->clone->digest($manifest->{config}{digest}))->then(sub ($config = undef) {
 					if ($config && $config->{'os.version'}) {
@@ -80,7 +80,7 @@ sub needed_artifacts_p ($targetRef, $sourceRef) {
 				push @blobs, map { $_->{blobSum} } @{ $manifest->{fsLayers} };
 			}
 			elsif ($schemaVersion == 2) {
-				die "this should never happen: $manifest->{mediaType}" unless $manifest->{mediaType} eq 'application/vnd.docker.distribution.manifest.v2+json'; # sanity check
+				die "this should never happen: $manifest->{mediaType}" unless $manifest->{mediaType} eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2; # sanity check
 				push @blobs, $manifest->{config}{digest}, map { $_->{urls} ? () : $_->{digest} } @{ $manifest->{layers} };
 			}
 			else {
@@ -142,7 +142,7 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 
 			my $manifestList = {
 				schemaVersion => 2,
-				mediaType => 'application/vnd.docker.distribution.manifest.list.v2+json',
+				mediaType => Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_LIST,
 				manifests => \@manifestListItems,
 			};
 			my $manifestListJson = Mojo::JSON::encode_json($manifestList);
