@@ -148,7 +148,7 @@ sub head_manifest_p ($self, $ref) {
 	return $self->_retry_simple_req_p($self->defaultRetries, HEAD => $self->ref_url($ref, 'manifests'), { Accept => $acceptHeader })->then(sub ($tx) {
 		return undef if $tx->res->code == 404 || $tx->res->code == 401;
 		die "unexpected response code HEADing manifest '$ref': " . $tx->res->code . ' -- ' . $tx->res->message unless $tx->res->code == 200;
-		my $digest = $tx->res->headers->header('docker-content-digest');
+		my $digest = $tx->res->headers->header('Docker-Content-Digest');
 		die "missing digest from HEADing manifest '$ref'" unless $digest;
 		my $cacheKey = $ref->clone->digest($digest)->to_canonical_string;
 		return $cache{$cacheKey} = $digest;
