@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 bashbrew="$(which bashbrew)"
+bashbrew="$(readlink -e "$bashbrew")"
 bashbrewLibrary="${BASHBREW_LIBRARY:-$HOME/docker/official-images/library}"
 [ -n "$BASHBREW_ARCH_NAMESPACES" ]
 
