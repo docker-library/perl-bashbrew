@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-bashbrew="$(which bashbrew)"
-bashbrew="$(readlink -e "$bashbrew")"
 bashbrewLibrary="${BASHBREW_LIBRARY:-$HOME/docker/official-images/library}"
 [ -n "$BASHBREW_ARCH_NAMESPACES" ]
 
@@ -10,18 +8,17 @@ dockerConfig="${DOCKER_CONFIG:-$HOME/.docker}"
 [ -s "$dockerConfig/config.json" ]
 
 args=(
-	-v "$bashbrew":/usr/local/bin/bashbrew:ro
-	-v "$bashbrewLibrary":/library:ro
-	-e BASHBREW_LIBRARY=/library
-	-e BASHBREW_ARCH_NAMESPACES
+	--mount "type=bind,src=$bashbrewLibrary,dst=/library,ro"
+	--env BASHBREW_LIBRARY=/library
+	--env BASHBREW_ARCH_NAMESPACES
 
-	-v "$dockerConfig":/.docker:ro
-	-e DOCKER_CONFIG='/.docker'
+	--mount "type=bind,src=$dockerConfig,dst=/.docker,ro"
+	--env DOCKER_CONFIG='/.docker'
 
-	-e DOCKERHUB_PUBLIC_PROXY
+	--env DOCKERHUB_PUBLIC_PROXY
 
-	#-e MOJO_CLIENT_DEBUG=1
-	#-e MOJO_IOLOOP_DEBUG=1
+	#--env MOJO_CLIENT_DEBUG=1
+	#--env MOJO_IOLOOP_DEBUG=1
 
 	# localhost!
 	--network host

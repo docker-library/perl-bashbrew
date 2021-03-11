@@ -8,6 +8,16 @@ RUN set -eux; \
 	; \
 	rm -rf /var/lib/apt/lists/*
 
+# https://github.com/docker-library/bashbrew/releases
+ENV BASHBREW_VERSION 0.1.2
+RUN set -eux; \
+	wget -O /usr/local/bin/bashbrew-host-arch.sh "https://github.com/docker-library/bashbrew/raw/v${BASHBREW_VERSION}/scripts/bashbrew-host-arch.sh"; \
+	chmod +x /usr/local/bin/bashbrew-host-arch.sh; \
+	bashbrewArch="$(bashbrew-host-arch.sh)"; \
+	wget -O /usr/local/bin/bashbrew "https://github.com/docker-library/bashbrew/releases/download/v${BASHBREW_VERSION}/bashbrew-$bashbrewArch"; \
+	chmod +x /usr/local/bin/bashbrew; \
+	bashbrew --version
+
 # secure by default ♥ (thanks to sri!)
 ENV PERL_CPANM_OPT --verbose --mirror https://cpan.metacpan.org
 # TODO find a way to make --mirror-only / SSL work with backpan too :(
