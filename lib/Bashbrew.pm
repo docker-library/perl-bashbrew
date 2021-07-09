@@ -18,18 +18,22 @@ sub arch_to_platform ($arch) {
 		(v[0-9]+)? # optional "variant" suffix ("v7", "v6", etc)
 		$
 	}x) {
+		my ($os, $architecture, $variant) = ($1, $2, $3);
+		$os //= 'linux';
+		if ($architecture eq 'i386') {
+			$architecture = '386';
+		}
+		elsif ($architecture eq 'arm32') {
+			$architecture = 'arm';
+		}
+		elsif ($architecture eq 'risc' && $variant) { # "riscv64" is not "risc, v64" 😂
+			$architecture .= $variant;
+			$variant = '';
+		}
 		return (
-			os => $1 // 'linux',
-			architecture => (
-				$2 eq 'i386'
-				? '386'
-				: (
-					$2 eq 'arm32'
-					? 'arm'
-					: $2
-				)
-			),
-			($3 ? (variant => $3) : ()),
+			os => $os,
+			architecture => $architecture,
+			($variant ? (variant => $variant) : ()),
 		);
 	}
 	die "unrecognized architecture format in: $arch";
