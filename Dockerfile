@@ -9,7 +9,7 @@ RUN set -eux; \
 	rm -rf /var/lib/apt/lists/*
 
 # https://github.com/docker-library/bashbrew/releases
-ENV BASHBREW_VERSION 0.1.2
+ENV BASHBREW_VERSION 0.1.3
 RUN set -eux; \
 	wget -O /usr/local/bin/bashbrew-host-arch.sh "https://github.com/docker-library/bashbrew/raw/v${BASHBREW_VERSION}/scripts/bashbrew-host-arch.sh"; \
 	chmod +x /usr/local/bin/bashbrew-host-arch.sh; \
