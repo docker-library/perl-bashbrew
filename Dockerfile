@@ -43,7 +43,8 @@ RUN set -eux; \
 		zlib1g-dev \
 	; \
 	rm -rf /var/lib/apt/lists/*; \
-	cpanm \
+# skip the tests because they take forever to run 🙈😇 (we should really do something "smarter" here like pushing cache somewhere)
+	cpanm --notest \
 		EV \
 		IO::Socket::IP \
 		IO::Socket::Socks \
