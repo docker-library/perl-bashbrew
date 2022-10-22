@@ -36,6 +36,13 @@ use constant MEDIA_FOREIGN_LAYER => 'application/vnd.docker.image.rootfs.foreign
 use constant MEDIA_OCI_INDEX_V1    => 'application/vnd.oci.image.index.v1+json';
 use constant MEDIA_OCI_MANIFEST_V1 => 'application/vnd.oci.image.manifest.v1+json';
 
+sub is_media_image_manifest ($mediaType) {
+	return $mediaType eq MEDIA_OCI_MANIFEST_V1 || $mediaType eq MEDIA_MANIFEST_V2 || $mediaType eq MEDIA_MANIFEST_V1;
+}
+sub is_media_image_list ($mediaType) {
+	return $mediaType eq MEDIA_OCI_INDEX_V1 || $mediaType eq MEDIA_MANIFEST_LIST;
+}
+
 # this is "normally" handled for us by https://github.com/tianon/dockerhub-public-proxy but is necessary for alternative registries
 my $acceptHeader = [
 	MEDIA_MANIFEST_LIST,

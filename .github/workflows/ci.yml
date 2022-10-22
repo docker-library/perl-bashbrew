@@ -17,11 +17,20 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: docker build --pull --tag oisupport/perl-bashbrew .
-      - uses: actions/checkout@v3
-        with:
-          repository: docker-library/official-images
-          ref: b851f53b765e622928a94663d425ddbe37aceb3b
-          path: oi
-      - run: echo "BASHBREW_LIBRARY=$PWD/oi/library" >> "$GITHUB_ENV"
-      - run: docker run -dit --name registry --restart always -p 5000:5000 registry
-      - run: ./test-localhost.sh
+      - name: Install "bashbrew"
+        run: |
+          git clone --depth 1 https://github.com/docker-library/bashbrew.git -b master bashbrew
+          ./bashbrew/bashbrew.sh --version > /dev/null
+          export PATH="$PWD/bashbrew/bin:$PATH"
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          bashbrew --version
+      - name: Clone DOI
+        run: |
+          git clone --depth 1 https://github.com/docker-library/official-images.git oi
+          export BASHBREW_LIBRARY="$PWD/oi/library"
+          echo "BASHBREW_LIBRARY=$BASHBREW_LIBRARY" >> "$GITHUB_ENV"
+          bashbrew from hello-world:latest > /dev/null
+      - run: docker run -dit --name registry --restart always -p 5000:5000 --env REGISTRY_VALIDATION_MANIFESTS_URLS_ALLOW='["^.*$"]' --env REGISTRY_VALIDATION_MANIFESTS_URLS_DENY='[]' registry
+      - run: ./test-localhost.sh hello-world:latest # includes Windows images
+      - run: ./test-localhost.sh hello-world:nanoserver-ltsc2022 # forces an "os.version from the config blob" lookup
+      - run: ./test-localhost.sh busybox:latest # includes three separate "linux/arm" variants
