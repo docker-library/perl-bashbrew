@@ -32,12 +32,18 @@ use constant MEDIA_MANIFEST_LIST => 'application/vnd.docker.distribution.manifes
 use constant MEDIA_MANIFEST_V2   => 'application/vnd.docker.distribution.manifest.v2+json';
 use constant MEDIA_MANIFEST_V1   => 'application/vnd.docker.distribution.manifest.v1+json';
 use constant MEDIA_FOREIGN_LAYER => 'application/vnd.docker.image.rootfs.foreign.diff.tar.gzip';
+# https://github.com/opencontainers/image-spec/blob/v1.0.2/media-types.md
+use constant MEDIA_OCI_INDEX_V1    => 'application/vnd.oci.image.index.v1+json';
+use constant MEDIA_OCI_MANIFEST_V1 => 'application/vnd.oci.image.manifest.v1+json';
 
 # this is "normally" handled for us by https://github.com/tianon/dockerhub-public-proxy but is necessary for alternative registries
 my $acceptHeader = [
 	MEDIA_MANIFEST_LIST,
 	MEDIA_MANIFEST_V2,
 	MEDIA_MANIFEST_V1,
+	MEDIA_OCI_INDEX_V1,
+	MEDIA_OCI_MANIFEST_V1,
+	'*/*', # Docker Hub doesn't (currently, as of 2022-10-20) support this catch-all, but other registries do
 ];
 
 sub _retry_simple_req_p ($self, $tries, $method, @args) {

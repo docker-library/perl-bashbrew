@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: docker-library/official-images
-          ref: abe06f9a56327c6b8805437a6ddc47b2e8a2de5f
+          ref: b851f53b765e622928a94663d425ddbe37aceb3b
           path: oi
       - run: echo "BASHBREW_LIBRARY=$PWD/oi/library" >> "$GITHUB_ENV"
       - run: docker run -dit --name registry --restart always -p 5000:5000 registry

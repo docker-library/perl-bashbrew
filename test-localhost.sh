@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # docker run -dit --name registry --restart always -p 5000:5000 registry
 
-arches=( amd64 arm32v5 arm32v6 arm32v7 arm64v8 i386 mips64le ppc64le s390x )
+arches=( amd64 arm32v5 arm32v6 arm32v7 arm64v8 i386 mips64le ppc64le riscv64 s390x )
 image='busybox:latest'
 target='localhost:5000'
 
@@ -12,6 +12,8 @@ for arch in "${arches[@]}"; do
 	docker image inspect "$arch/$image" &> /dev/null || docker pull "$arch/$image"
 	docker tag "$arch/$image" "$target/$arch/$image"
 	docker push "$target/$arch/$image"
+	#skopeo copy --format oci "docker://docker.io/$arch/$image" --dest-tls-verify=false "docker://$target/$arch/$image"
+	#skopeo copy --format v2s2 "docker://docker.io/$arch/$image" --dest-tls-verify=false "docker://$target/$arch/$image"
 	[ -z "$BASHBREW_ARCH_NAMESPACES" ] || BASHBREW_ARCH_NAMESPACES+=', '
 	BASHBREW_ARCH_NAMESPACES+="$arch = $target/$arch"
 done

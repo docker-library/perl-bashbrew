@@ -34,11 +34,12 @@ sub get_arch_p ($targetRef, $arch, $archRef) {
 		my ($digest, $manifest, $size) = ($manifestData->{digest}, $manifestData->{manifest}, $manifestData->{size});
 
 		my $mediaType = $manifestData->{mediaType};
-		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_LIST) {
+		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_OCI_INDEX_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_LIST) {
 			# jackpot -- if it's already a manifest list, the hard work is done!
 			return ($archRef, $manifest->{manifests});
+			# TODO we should validate the "platform" values here to make sure we're not violating the security boundary
 		}
-		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2) {
+		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_OCI_MANIFEST_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2) {
 			my $manifestListItem = {
 				mediaType => $mediaType,
 				size => $size,
@@ -80,7 +81,7 @@ sub needed_artifacts_p ($targetRef, $sourceRef) {
 				push @blobs, map { $_->{blobSum} } @{ $manifest->{fsLayers} };
 			}
 			elsif ($schemaVersion == 2) {
-				die "this should never happen: $manifest->{mediaType}" unless $manifest->{mediaType} eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2; # sanity check
+				die "this should never happen: $manifest->{mediaType}" unless $manifest->{mediaType} eq Bashbrew::RegistryUserAgent::MEDIA_OCI_MANIFEST_V1 || $manifest->{mediaType} eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2; # sanity check
 				push @blobs, $manifest->{config}{digest}, map { $_->{urls} ? () : $_->{digest} } @{ $manifest->{layers} };
 			}
 			else {
@@ -127,6 +128,7 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 
 		return Mojo::Promise->map({ concurrency => 1 }, sub ($archData) {
 			my ($arch, $archNamespace) = split /=/, $archData;
+			die "missing arch namespace for '$arch'" unless $archNamespace;
 			my $archRef = Bashbrew::RemoteImageRef->new($archNamespace . '/' . $ref->repo_name . ':' . $ref->tag);
 			die "'$archRef' registry does not match '$ref' registry" unless $archRef->registry_host eq $ref->registry_host;
 			return get_arch_p($ref, $arch, $archRef);
@@ -142,7 +144,19 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 
 			my $manifestList = {
 				schemaVersion => 2,
-				mediaType => Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_LIST,
+				mediaType => (
+					(
+						@manifestListItems
+						&& (
+							$manifestListItems[0]->{mediaType} eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2
+							|| $manifestListItems[0]->{mediaType} eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V1
+						)
+					)
+					# if our first manifest uses a Docker media type, let's use a Docker manifest list for our outer wrapper
+					? Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_LIST
+					# otherwise, let's default to the OCI index media type
+					: Bashbrew::RegistryUserAgent::MEDIA_OCI_INDEX_V1
+				),
 				manifests => \@manifestListItems,
 			};
 			my $manifestListJson = Mojo::JSON::encode_json($manifestList);
@@ -167,7 +181,7 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 						next unless @$neededArtifact;
 						my ($type, $artifactRef) = @$neededArtifact;
 						if ($type eq 'blob') {
-							# https://docs.docker.com/registry/spec/api/#mount-blob
+							# https://specs.opencontainers.org/distribution-spec/?v=v1.0.0#mounting-a-blob-from-another-repository
 							push @mountBlobPromises, sub { $ua->authenticated_registry_req_p(
 								POST => $ref,
 								'repository:' . $ref->repo . ':push repository:' . $artifactRef->repo . ':pull',
@@ -233,7 +247,12 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 						}
 						my $digest = $tx->res->headers->header('Docker-Content-Digest');
 						say "Pushed $ref ($digest)";
-						say {*STDERR} "WARNING: expected '$manifestListDigest', got '$digest' (for '$ref')" unless $manifestListDigest eq $digest;
+						if (!$digest) {
+							say {*STDERR} "WARNING: missing 'Docker-Content-Digest: $manifestListDigest' header (for '$ref')";
+						}
+						elsif ($manifestListDigest ne $digest) {
+							die "expected '$manifestListDigest', got '$digest' (for '$ref')";
+						}
 					});
 				});
 			});
