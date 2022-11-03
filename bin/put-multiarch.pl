@@ -31,39 +31,106 @@ $ua->hubProxy($ENV{DOCKERHUB_PUBLIC_PROXY} || die 'missing DOCKERHUB_PUBLIC_PROX
 sub get_arch_p ($targetRef, $arch, $archRef) {
 	return $ua->get_manifest_p($archRef)->then(sub ($manifestData = undef) {
 		return unless $manifestData;
-		my ($digest, $manifest, $size) = ($manifestData->{digest}, $manifestData->{manifest}, $manifestData->{size});
+		my ($mediaType, $digest, $size, $manifest) = (
+			$manifestData->{mediaType},
+			$manifestData->{digest},
+			$manifestData->{size},
+			$manifestData->{manifest},
+		);
 
-		my $mediaType = $manifestData->{mediaType};
-		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_OCI_INDEX_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_LIST) {
-			# jackpot -- if it's already a manifest list, the hard work is done!
-			return ($archRef, $manifest->{manifests});
-			# TODO we should validate the "platform" values here to make sure we're not violating the security boundary
+		my @manifests;
+		if (Bashbrew::RegistryUserAgent::is_media_image_list($mediaType)) {
+			push @manifests, @{ $manifest->{manifests} };
 		}
-		if ($mediaType eq Bashbrew::RegistryUserAgent::MEDIA_OCI_MANIFEST_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V1 || $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2) {
-			my $manifestListItem = {
+		elsif (Bashbrew::RegistryUserAgent::is_media_image_manifest($mediaType)) {
+			push @manifests, {
 				mediaType => $mediaType,
 				size => $size,
 				digest => $digest,
-				platform => {
-					arch_to_platform($arch),
-					($manifest->{'os.version'} ? ('os.version' => $manifest->{'os.version'}) : ()),
-				},
 			};
-			if ($manifestListItem->{platform}{os} eq 'windows' && !$manifestListItem->{platform}{'os.version'} && $mediaType eq Bashbrew::RegistryUserAgent::MEDIA_MANIFEST_V2) {
-				# if we're on Windows, we need to make an effort to fetch the "os.version" value from the config for the platform object
-				return $ua->get_blob_p($archRef->clone->digest($manifest->{config}{digest}))->then(sub ($config = undef) {
-					if ($config && $config->{'os.version'}) {
-						$manifestListItem->{platform}{'os.version'} = $config->{'os.version'};
-					}
-					return ($archRef, [ $manifestListItem ]);
-				});
+		}
+		else {
+			die "unknown mediaType '$mediaType' for '$archRef'";
+		}
+
+		# filter out objects we know we don't want (not a hashref, missing required fields)
+		@manifests = grep {
+			# https://specs.opencontainers.org/image-spec/descriptor/?v=v1.0.1
+			'HASH' eq ref($_) && $_->{mediaType} && $_->{digest} && $_->{size}
+		} @manifests;
+
+		# filter objects down to just fields we care about
+		@manifests = map {
+			# https://specs.opencontainers.org/image-spec/descriptor/?v=v1.0.1
+			{ %{ $_ }{qw{
+				mediaType
+				digest
+				size
+				annotations
+				platform
+			}} }
+		} @manifests;
+
+		my %platform = arch_to_platform($arch);
+
+		# normalize the result a bit (delete empty annotations and make sure platform is an object and that every platform has at least "os" and "architecture")
+		@manifests = map {
+			$_->{platform} //= {};
+			for my $key (qw( os architecture )) {
+				$_->{platform}{$key} //= $platform{$key};
 			}
-			else {
-				return ($archRef, [ $manifestListItem ]);
+			delete $_->{annotations} unless defined $_->{annotations};
+			$_
+		} @manifests;
+
+		# now that we have a list of potential manifests, let's filter it based on %platform's "os" and "architecture" (avoids "riscv64" from being able to poison us with anything other than riscv64-tagged manifests)
+		my @filteredManifests = grep {
+			Bashbrew::RegistryUserAgent::is_media_image_manifest($_->{mediaType})
+			&& $_->{platform}{os} eq $platform{os}
+			&& $_->{platform}{architecture} eq $platform{architecture}
+		} @manifests;
+		# normalize "platform" objects (esp. for "variant")
+		for my $item (@filteredManifests) {
+			for my $key (keys %platform) {
+				$item->{platform}{$key} = $platform{$key};
 			}
 		}
 
-		die "unknown mediaType '$mediaType' for '$archRef'";
+		# include any relevant "Docker-style" attachments (https://github.com/moby/buildkit/pull/2983, https://github.com/moby/buildkit/pull/3129, etc)
+		my %digests = map { $_ => 1 } map { $_->{digest} } @filteredManifests;
+		push @filteredManifests, grep {
+			$_->{mediaType} eq Bashbrew::RegistryUserAgent::MEDIA_OCI_MANIFEST_V1
+			&& $_->{platform}{os} eq 'unknown'
+			&& $_->{platform}{architecture} eq 'unknown'
+			&& $_->{annotations}
+			&& $digests{$_->{annotations}{'vnd.docker.reference.digest'} // ''}
+			&& $_->{annotations}{'vnd.docker.reference.type'}
+		} @manifests;
+
+		# if we're looking at Windows, we need to make an effort to fetch the "os.version" value from the config for the platform object
+		return Mojo::Promise->map({ concurrency => 3 }, sub ($item) {
+			unless (
+				Bashbrew::RegistryUserAgent::is_media_image_manifest($item->{mediaType})
+				&& $item->{platform}{os} eq 'windows'
+				&& !$item->{platform}{'os.version'}
+			) {
+				return Mojo::Promise->resolve($item);
+			}
+			return $ua->get_manifest_p($archRef->clone->digest($item->{digest}))->then(sub ($manifestData = undef) {
+				return $item unless $manifestData;
+				my $manifest = $manifestData->{manifest};
+				return $item unless $manifest->{config} and $manifest->{config}{digest};
+				return $ua->get_blob_p($archRef->clone->digest($manifest->{config}{digest}))->then(sub ($config = undef) {
+					if ($config && $config->{'os.version'}) {
+						$item->{platform}{'os.version'} = $config->{'os.version'};
+					}
+					return $item;
+				});
+			});
+		}, @filteredManifests)->then(sub (@manifests) {
+			@manifests = map { @$_ } @manifests;
+			return ($archRef, \@manifests);
+		});
 	});
 }
 
