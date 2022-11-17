@@ -17,13 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: docker build --pull --tag oisupport/perl-bashbrew .
-      - name: Install "bashbrew"
-        run: |
-          git clone --depth 1 https://github.com/docker-library/bashbrew.git -b master bashbrew
-          ./bashbrew/bashbrew.sh --version > /dev/null
-          export PATH="$PWD/bashbrew/bin:$PATH"
-          echo "PATH=$PATH" >> "$GITHUB_ENV"
-          bashbrew --version
+      - uses: docker-library/bashbrew@HEAD
       - name: Clone DOI
         run: |
           git clone --depth 1 https://github.com/docker-library/official-images.git oi
