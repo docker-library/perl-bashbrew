@@ -5,7 +5,7 @@ set -Eeuo pipefail
 
 # docker run -dit --name registry --restart always -p 5000:5000 --env REGISTRY_VALIDATION_MANIFESTS_URLS_ALLOW='["^.*$"]' --env REGISTRY_VALIDATION_MANIFESTS_URLS_DENY='[]' registry
 
-image="${1:-'hello-world:latest'}"
+image="${1:-hello-world:latest}"
 registry='docker.io'
 target='localhost:5000'
 
