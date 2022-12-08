@@ -62,6 +62,8 @@ sub _retry_simple_req_p ($self, $tries, $method, @args) {
 		$prom = $prom->then(sub ($tx) {
 			return $tx if !$tx->error || $tx->res->code == 404 || $tx->res->code == 401;
 
+			say {*STDERR} "Note: retrying a request (@{[ $tx->req->url . ' -> ' . $tx->res->code ]}); $tries tries remain"; # TODO allow these notices to be disabled?
+
 			# retry after a small delay (longer in the face of "429 Too Many Requests")
 			return Mojo::Promise->timer(
 				$tx->res->code == 429
