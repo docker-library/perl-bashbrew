@@ -8,7 +8,7 @@ has [qw( host repo tag digest )];
 
 # https://github.com/docker/distribution/blob/411d6bcfd2580d7ebe6e346359fa16aceec109d5/reference/regexp.go
 my $alphaNumericRegexp = qr{ [a-z0-9]+ }x;
-my $separatorRegexp = qr{ [._] | __ | [-]* }x;
+my $separatorRegexp = qr{ [._] | __ | [-]+ }x;
 my $nameComponentRegexp = qr{ $alphaNumericRegexp (?: $separatorRegexp $alphaNumericRegexp )* }x;
 my $domainComponentRegexp = qr{ [a-zA-Z0-9] | [a-zA-Z0-9] [a-zA-Z0-9-]* [a-zA-Z0-9] }x;
 my $domainRegexp = qr{ $domainComponentRegexp (?: [.] $domainComponentRegexp )* (?: [:] [0-9]+ )? }x;
