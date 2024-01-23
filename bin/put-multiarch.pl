@@ -6,6 +6,7 @@ use Mojo::Base -strict, -signatures;
 # (in a more efficient way than manifest-tool can do generically such that we can reasonably do 3700+ no-op tag pushes individually in ~9 minutes)
 
 use Digest::SHA;
+use Dpkg::Version;
 use Getopt::Long;
 use Mojo::Promise;
 
@@ -208,6 +209,22 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 				push @manifestListItems, @$manifestListItems;
 				push @neededArtifactPromises, map { my $digest = $_->{digest}; sub { needed_artifacts_p($ref, $archRef->clone->digest($digest)) } } @$manifestListItems;
 			}
+
+			# sort Windows image manifests to ensure proper order in the image index
+			my $sorter = sub {
+				# also sort platform->variant for linux/arm?
+				for my $obj ($a, $b) {
+					return 0 unless $obj->{platform};
+					for my $field (qw{ os architecture os.version }) {
+						return 0 unless $obj->{platform}{$field};
+					}
+				}
+				return 0 unless $a->{platform}{os} eq $b->{platform}{os};
+				return 0 unless $a->{platform}{architecture} eq $b->{platform}{architecture};
+				# reverse version sort windows versions: 10.0.20348.2227, 10.0.17763.5329
+				return - ( Dpkg::Version->new($a->{platform}{'os.version'}) <=> Dpkg::Version->new($b->{platform}{'os.version'}) );
+			};
+			@manifestListItems = sort $sorter @manifestListItems;
 
 			my $manifestList = {
 				schemaVersion => 2,
