@@ -1,4 +1,4 @@
-FROM perl:5.28-slim
+FROM perl:5.32-slim
 
 RUN set -eux; \
 	apt-get update; \
@@ -63,7 +63,16 @@ ENV LIBEV_FLAGS 4
 WORKDIR /opt/perl-bashbrew
 COPY lib/Bashbrew.pm lib/
 COPY Makefile.PL ./
-RUN cpanm --installdeps .
+RUN set -eux; \
+	savedAptMark="$(apt-mark showmanual)"; \
+	apt-get update; \
+# the Dpkg module needs patch
+	apt-get install -y --no-install-recommends patch; \
+	cpanm -v --installdeps .; \
+	apt-mark auto '.*' > /dev/null; \
+	apt-mark manual $savedAptMark > /dev/null; \
+	apt-get purge -y --auto-remove
+
 COPY . .
 RUN cpanm .
 

@@ -13,6 +13,7 @@ WriteMakefile(
 		'Test::More' => 0,
 	},
 	PREREQ_PM => {
+		'Dpkg::Version' => 0,
 		'EV' => 0,
 		'IO::Socket::IP' => 0,
 		'IO::Socket::SSL' => 0,
