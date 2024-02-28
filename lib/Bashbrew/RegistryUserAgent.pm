@@ -266,7 +266,7 @@ sub authenticated_registry_req_p ($self, $method, $ref, $scope, $url, $contentTy
 			});
 		}
 
-		if (!$lastTry && $tx->res->code != 200) {
+		if (!$lastTry && ($tx->res->code < 200 || $tx->res->code > 299)) {
 			return $self->authenticated_registry_req_p($method, $ref, $scope, $url, $contentType, $payload, $tries);
 		}
 
