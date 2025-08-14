@@ -1,4 +1,4 @@
-FROM perl:5.32-slim
+FROM perl:5.40-slim-bookworm
 
 RUN set -eux; \
 	apt-get update; \
@@ -9,7 +9,7 @@ RUN set -eux; \
 	rm -rf /var/lib/apt/lists/*
 
 # https://github.com/docker-library/bashbrew/releases
-ENV BASHBREW_VERSION 0.1.3
+ENV BASHBREW_VERSION 0.1.13
 RUN set -eux; \
 	wget -O /usr/local/bin/bashbrew-host-arch.sh "https://github.com/docker-library/bashbrew/raw/v${BASHBREW_VERSION}/scripts/bashbrew-host-arch.sh"; \
 	chmod +x /usr/local/bin/bashbrew-host-arch.sh; \
