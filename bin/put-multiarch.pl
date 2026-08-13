@@ -172,11 +172,11 @@ sub needed_artifacts_p ($targetRef, $sourceRef) {
 }
 
 Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
-	die "image '$img' is missing explict namespace -- bailing to avoid accidental push to 'library'" unless $img =~ m!/!;
+	return Mojo::Promise->reject("image '$img' is missing explict namespace -- bailing to avoid accidental push to 'library'") unless $img =~ m!/!;
 
 	my $ref = Bashbrew::RemoteImageRef->new($img);
 
-	my @refs = (
+	my @refs = eval {
 		$ref->tag
 		? ( $ref )
 		: (
@@ -184,21 +184,23 @@ Mojo::Promise->map({ concurrency => 8 }, sub ($img) {
 			List::Util::uniq sort
 			split /\n/, bashbrew('list', $ref->repo_name)
 		)
-	);
+	};
+	return Mojo::Promise->reject($@) if $@;
 	return Mojo::Promise->resolve unless @refs; # no tags, nothing to do! (opensuse, etc)
 
 	return Mojo::Promise->map({ concurrency => 1 }, sub ($ref) {
-		my @arches = (
+		my @arches = eval {
 			List::Util::uniq sort
 			split /\n/, bashbrew('cat', '--format', '{{ range .Entries }}{{ range .Architectures }}{{ . }}={{ archNamespace . }}{{ "\n" }}{{ end }}{{ end }}', $ref->repo_name . ':' . $ref->tag)
-		);
+		};
+		return Mojo::Promise->reject($@) if $@;
 		return Mojo::Promise->resolve unless @arches; # no arches, nothing to do!
 
 		return Mojo::Promise->map({ concurrency => 1 }, sub ($archData) {
 			my ($arch, $archNamespace) = split /=/, $archData;
-			die "missing arch namespace for '$arch'" unless $archNamespace;
+			return Mojo::Promise->reject("missing arch namespace for '$arch'") unless $archNamespace;
 			my $archRef = Bashbrew::RemoteImageRef->new($archNamespace . '/' . $ref->repo_name . ':' . $ref->tag);
-			die "'$archRef' registry does not match '$ref' registry" unless $archRef->registry_host eq $ref->registry_host;
+			return Mojo::Promise->reject("'$archRef' registry does not match '$ref' registry") unless $archRef->registry_host eq $ref->registry_host;
 			return get_arch_p($ref, $arch, $archRef);
 		}, @arches)->then(sub (@archResponses) {
 			my @manifestListItems;
