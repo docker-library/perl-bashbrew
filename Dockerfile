@@ -5,6 +5,8 @@ RUN set -eux; \
 	apt-get install -y --no-install-recommends \
 		ca-certificates \
 		wget \
+# the Dpkg module needs patch
+		patch \
 	; \
 	rm -rf /var/lib/apt/lists/*
 
@@ -56,6 +58,14 @@ RUN set -eux; \
 	apt-mark manual $savedAptMark > /dev/null; \
 	apt-get purge -y --auto-remove
 
+# there's something wrong with Dpkg 1.23.9+ where it fails to install
+# https://metacpan.org/release/GUILLEM/Dpkg-1.23.4
+RUN cpanm https://cpan.metacpan.org/authors/id/G/GU/GUILLEM/Dpkg-1.23.4.tar.gz
+#   Failed test 'Tainting check t/Dpkg_Shlibs.t'
+#   at t/taint.t line 36.
+# Can't locate Test/Dpkg.pm in @INC (you may need to install the Test::Dpkg module) (@INC entries checked: scripts dselect/methods /usr/local/lib/perl5/site_perl/5.40.5/x86_64-linux-gnu /usr/local/lib/perl5/site_perl/5.40.5 /usr/local/lib/perl5/vendor_perl/5.40.5/x86_64-linux-gnu /usr/local/lib/perl5/vendor_perl/5.40.5 /usr/local/lib/perl5/5.40.5/x86_64-linux-gnu /usr/local/lib/perl5/5.40.5) at t/Dpkg_Shlibs.t line 19.
+# BEGIN failed--compilation aborted at t/Dpkg_Shlibs.t line 19.
+
 # https://metacpan.org/pod/release/SRI/Mojolicious-8.21/lib/Mojo/IOLoop.pm#DESCRIPTION
 ENV LIBEV_FLAGS 4
 # epoll (Linux)
@@ -63,15 +73,7 @@ ENV LIBEV_FLAGS 4
 WORKDIR /opt/perl-bashbrew
 COPY lib/Bashbrew.pm lib/
 COPY Makefile.PL ./
-RUN set -eux; \
-	savedAptMark="$(apt-mark showmanual)"; \
-	apt-get update; \
-# the Dpkg module needs patch
-	apt-get install -y --no-install-recommends patch; \
-	cpanm -v --installdeps .; \
-	apt-mark auto '.*' > /dev/null; \
-	apt-mark manual $savedAptMark > /dev/null; \
-	apt-get purge -y --auto-remove
+RUN cpanm -v --installdeps .
 
 COPY . .
 RUN cpanm .
